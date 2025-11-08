@@ -1,0 +1,276 @@
+
+      
+    
+  
+
+ 
+    
+    
+      
+    
+      from flask import Flask, render_template_string, jsonify, request
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+# -----------------------
+# Demo Data (Backend)
+# -----------------------
+users = []
+parts = [
+    {"id": 1, "name": "Brake Pad", "price": 1500},
+    {"id": 2, "name": "Engine Oil", "price": 800},
+    {"id": 3, "name": "Oil Filter", "price": 650},
+    {"id": 4, "name": "Wheel Bearing", "price": 1250},
+    {"id": 5, "name": "Air Filter", "price": 500},
+]
+service_centers = [
+    {
+        "id": 1, "name": "Sharma Motors", "lat": 28.6139, "lng": 77.2090,
+        "phone": "9810012345", "address": "Rajouri Garden, New Delhi",
+        "email": "sharmamotors@gmail.com"
+    },
+    {
+        "id": 2, "name": "Singh Auto Care", "lat": 28.7041, "lng": 77.1025,
+        "phone": "9810023456", "address": "Karol Bagh, New Delhi",
+        "email": "singhautocare@gmail.com"
+    },
+    {
+        "id": 3, "name": "Kumar Vehicle Works", "lat": 28.6782, "lng": 77.3211,
+        "phone": "9810034567", "address": "Laxmi Nagar, New Delhi",
+        "email": "kumarvw@gmail.com"
+    },
+]
+
+
+# -----------------------
+# ROUTES
+# -----------------------
+
+@app.route("/")
+def home():
+    return render_template_string(frontend_code)
+
+
+@app.route("/api/register", methods=["POST"])
+def register():
+    data = request.get_json()
+    if any(u["email"] == data["email"] for u in users):
+        return jsonify({"success": False, "message": "Email already registered!"})
+    users.append(data)
+    return jsonify({"success": True, "message": "Registration successful!"})
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    for u in users:
+        if u["email"] == data["email"] and u["pwd"] == data["pwd"] and u["role"] == data["role"]:
+            return jsonify({"success": True, "message": "Login successful!"})
+    return jsonify({"success": False, "message": "Invalid credentials or role!"})
+
+
+@app.route("/api/parts")
+def get_parts():
+    return jsonify(parts)
+
+
+@app.route("/api/service-centers")
+def get_service_centers():
+    return jsonify(service_centers)
+
+
+# -----------------------
+# FRONTEND (HTML + CSS + JS)
+# -----------------------
+frontend_code = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Motor Parts Shop & Service Locator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #eef2f5; color: #333; }
+    header { background: #064273; color: white; text-align: center; padding: 14px 0; font-size: 1.4em; font-weight: 600; }
+    main { padding: 20px; max-width: 900px; margin: auto; }
+    .section { background: white; padding: 20px; margin-bottom: 24px; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.1); }
+    h2 { color: #064273; border-left: 4px solid #064273; padding-left: 10px; }
+    input, select, button { margin: 6px 0; padding: 8px; font-size: 1em; border-radius: 6px; border: 1px solid #ccc; }
+    button { background: #064273; color: white; border: none; cursor: pointer; transition: 0.3s; }
+    button:hover { background: #0b5cad; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 6px 0; border-bottom: 1px solid #eee; }
+    #map { width: 100%; height: 350px; border-radius: 8px; margin-top: 10px; }
+    .hidden { display: none; }
+    .cartitem { font-size: 0.95em; }
+    #logoutBtn { float: right; background: #c62828; }
+    #logoutBtn:hover { background: #ef5350; }
+  </style>
+</head>
+<body>
+<header>
+  Motor Parts Shop & Service Locator
+  <button id="logoutBtn" class="hidden" onclick="logout()">Logout</button>
+</header>
+<main>
+  <div class="section" id="authSection">
+    <h2>User Login / Register</h2>
+    <select id="role">
+      <option value="customer">Customer</option>
+      <option value="company">Company</option>
+    </select><br>
+    <input id="email" placeholder="Email" type="email"><br>
+    <input id="pwd" placeholder="Password" type="password"><br>
+    <button onclick="login()">Login</button>
+    <button onclick="register()">Register</button>
+    <div id="authMsg" style="margin-top:8px;color:#064273;font-weight:500;"></div>
+  </div>
+
+  <div class="section hidden" id="shopSection">
+    <h2>🛒 Motor Parts Catalog</h2>
+    <ul id="parts"></ul>
+    <button onclick="showCart()">View Cart</button>
+    <div id="cartSection" class="hidden"></div>
+  </div>
+
+  <div class="section hidden" id="mapSection">
+    <h2>📍 Nearby Private Service Centers</h2>
+    <div id="map"></div>
+    <ul id="serviceCentersList"></ul>
+  </div>
+</main>
+
+<script>
+  let cart = [];
+  let loggedIn = false;
+
+  async function register() {
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        email: email.value, pwd: pwd.value, role: role.value
+      })
+    });
+    const data = await res.json();
+    authMsg.innerText = data.message;
+  }
+
+  async function login() {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        email: email.value, pwd: pwd.value, role: role.value
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      loggedIn = true;
+      authSection.classList.add('hidden');
+      shopSection.classList.remove('hidden');
+      mapSection.classList.remove('hidden');
+      logoutBtn.classList.remove('hidden');
+      loadParts();
+      loadCenters();
+      initMap();
+    } else authMsg.innerText = data.message;
+  }
+
+  function logout() {
+    loggedIn = false;
+    authSection.classList.remove('hidden');
+    shopSection.classList.add('hidden');
+    mapSection.classList.add('hidden');
+    logoutBtn.classList.add('hidden');
+  }
+
+  async function loadParts() {
+    const res = await fetch("/api/parts");
+    const parts = await res.json();
+    let html = '';
+    for (let p of parts) {
+      html += `<li>${p.name} — ₹${p.price} 
+                 <button onclick="addToCart(${p.id}, '${p.name}', ${p.price})">Add</button>
+               </li>`;
+    }
+    partsEl.innerHTML = html;
+  }
+
+  function addToCart(id, name, price) {
+    cart.push({id, name, price});
+    alert(name + " added to cart!");
+  }
+
+  function showCart() {
+    if (!cart.length) { alert("Cart is empty."); return; }
+    let total = cart.reduce((t, c) => t + c.price, 0);
+    let html = "<h4>Cart Items</h4><ul>";
+    cart.forEach(ci => html += `<li>${ci.name} — ₹${ci.price}</li>`);
+    html += `</ul><b>Total: ₹${total}</b><br><button onclick='checkout()'>Checkout</button>`;
+    cartSection.innerHTML = html;
+    cartSection.classList.remove('hidden');
+  }
+
+  function checkout() {
+    alert("Thank you for your order!");
+    cart = [];
+    cartSection.classList.add('hidden');
+  }
+
+  async function loadCenters() {
+    const res = await fetch("/api/service-centers");
+    const centers = await res.json();
+    let html = '';
+    for (let s of centers) {
+      html += `<li><b>${s.name}</b><br>${s.address}<br>
+              📞 <a href='tel:${s.phone}'>${s.phone}</a><br>
+              ✉️ <a href='mailto:${s.email}'>${s.email}</a><br></li>`;
+    }
+    serviceCentersList.innerHTML = html;
+  }
+
+  // Google Maps
+  function initMap() {
+    if (window.gmapLoaded) return;
+    window.gmapLoaded = true;
+    const script = document.createElement('script');
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=renderMap';
+    script.async = true;
+    document.body.appendChild(script);
+  }
+
+  window.renderMap = async function() {
+    const res = await fetch("/api/service-centers");
+    const centers = await res.json();
+    const map = new google.maps.Map(document.getElementById("map"), {zoom: 11, center: {lat: 28.65, lng: 77.16}});
+    centers.forEach(sc => {
+      const marker = new google.maps.Marker({position: {lat: sc.lat, lng: sc.lng}, map, title: sc.name});
+      const info = new google.maps.InfoWindow({content: `<b>${sc.name}</b><br>${sc.address}<br>📞 ${sc.phone}`});
+      marker.addListener('click', () => info.open(map, marker));
+    });
+  };
+
+  const email = document.getElementById('email');
+  const pwd = document.getElementById('pwd');
+  const role = document.getElementById('role');
+  const authMsg = document.getElementById('authMsg');
+  const authSection = document.getElementById('authSection');
+  const shopSection = document.getElementById('shopSection');
+  const mapSection = document.getElementById('mapSection');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const partsEl = document.getElementById('parts');
+  const cartSection = document.getElementById('cartSection');
+  const serviceCentersList = document.getElementById('serviceCentersList');
+</script>
+</body>
+</html>
+"""
+
+# -----------------------
+# RUN APP
+# -----------------------
+if __name__ == "__main__":
+    app.run(debug=True)
